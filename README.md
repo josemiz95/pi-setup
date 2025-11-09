@@ -14,14 +14,14 @@ Sistema de instalación modular para servicios en Docker: Pi-hole, Homarr y más
 ### Método 1: Ejecución directa desde GitHub
 
 ```bash
-bash <(curl -s https://raw.githubusercontent.com/tu-usuario/tu-repo/main/install.sh)
+curl -s https://raw.githubusercontent.com/josemiz95/pi-setup/refs/heads/main/install.sh | bash
 ```
 
 ### Método 2: Clonar repositorio
 
 ```bash
-git clone https://github.com/tu-usuario/tu-repo.git
-cd tu-repo
+git clone https://github.com/josemiz95/pi-setup
+cd pi-setup
 chmod +x install.sh
 ./install.sh
 ```

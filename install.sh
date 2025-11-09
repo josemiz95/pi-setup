@@ -7,6 +7,17 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS_DIR="${SCRIPT_DIR}/scripts"
 
+# URL base del repositorio de GitHub
+GITHUB_REPO="https://raw.githubusercontent.com/josemiz95/pi-setup/main"
+DOWNLOAD_SCRIPTS=false
+
+# Detectar si estamos ejecutando desde curl | bash
+if [ ! -d "$SCRIPTS_DIR" ]; then
+  echo "Detectado modo de ejecución remota. Descargando scripts..."
+  DOWNLOAD_SCRIPTS=true
+  mkdir -p "$SCRIPTS_DIR"
+fi
+
 # Colores para output
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -51,11 +62,35 @@ ask_user() {
   done
 }
 
+# Función para descargar un sub-script si es necesario
+download_subscript() {
+  local script_name="$1"
+  local script_path="${SCRIPTS_DIR}/${script_name}"
+  
+  if [ "$DOWNLOAD_SCRIPTS" = true ]; then
+    echo "Descargando ${script_name}..."
+    if curl -fsSL "${GITHUB_REPO}/scripts/${script_name}" -o "$script_path"; then
+      chmod +x "$script_path"
+      return 0
+    else
+      echo -e "${RED}✗${NC} Error al descargar ${script_name}"
+      return 1
+    fi
+  fi
+  return 0
+}
+
 # Función para ejecutar un sub-script
 run_subscript() {
   local script_name="$1"
   local service_name="$2"
   local script_path="${SCRIPTS_DIR}/${script_name}"
+  
+  # Descargar si es necesario
+  if ! download_subscript "$script_name"; then
+    FAILED_SERVICES+=("$service_name")
+    return 1
+  fi
   
   if [ ! -f "$script_path" ]; then
     echo -e "${RED}✗${NC} Error: No se encuentra el script $script_name"
@@ -210,7 +245,10 @@ Ejemplo:
   $0 -y           # Instalación automática sin preguntas
 
 El script puede ejecutarse directamente desde GitHub:
-  bash <(curl -s https://raw.githubusercontent.com/tu-usuario/tu-repo/main/install.sh)
+  curl -s https://raw.githubusercontent.com/josemiz95/pi-setup/main/install.sh | bash
+  
+O con modo automático:
+  curl -s https://raw.githubusercontent.com/josemiz95/pi-setup/main/install.sh | bash -s -- -y
 
 EOF
   exit 0
