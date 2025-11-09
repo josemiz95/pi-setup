@@ -11,17 +11,47 @@ Sistema de instalación modular para servicios en Docker: Pi-hole, Homarr y más
 
 ## 🚀 Instalación Rápida
 
-### Método 1: Ejecución directa desde GitHub
+### Ejecución directa desde GitHub
 
 ```bash
-curl -s https://raw.githubusercontent.com/josemiz95/pi-setup/refs/heads/main/install.sh | bash
+curl -s https://raw.githubusercontent.com/josemiz95/pi-setup/main/install.sh | bash
 ```
 
-### Método 2: Clonar repositorio
+El script descargará automáticamente todos los componentes necesarios y te preguntará interactivamente qué deseas instalar.
+
+### Clonar repositorio (alternativa)
 
 ```bash
-git clone https://github.com/josemiz95/pi-setup
+git clone https://github.com/josemiz95/pi-setup.git
 cd pi-setup
+chmod +x install.sh
+./install.sh
+```
+
+## 🎯 Modo de Uso
+
+El instalador funciona en **modo interactivo**, preguntándote antes de cada instalación:
+
+- ✅ Responde **'s'** para instalar el componente
+- ❌ Responde **'n'** para omitirlo
+
+Ejemplo de ejecución:
+```
+[PASO 1/4] Verificación e instalación de Docker
+¿Deseas verificar/instalar Docker? (s/n): s
+
+[PASO 2/4] Instalación de VPN
+¿Deseas instalar VPN? (s/n): n
+Saltando instalación de VPN...
+
+[PASO 3/4] Instalación de Pi-hole
+¿Deseas instalar Pi-hole? (s/n): s
+...
+```
+
+```bash
+git clone https://github.com/tu-usuario/tu-repo.git
+cd tu-repo
 chmod +x install.sh
 ./install.sh
 ```

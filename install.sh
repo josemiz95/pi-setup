@@ -25,9 +25,6 @@ RED='\033[0;31m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Parámetros globales
-YES_TO_ALL=false
-
 # Arrays para rastrear instalaciones
 declare -a INSTALLED_SERVICES=()
 declare -a FAILED_SERVICES=()
@@ -43,17 +40,13 @@ show_banner() {
   echo
 }
 
-# Función para preguntar al usuario
+# Función para preguntar al usuario (compatible con curl | bash)
 ask_user() {
   local prompt="$1"
   
-  if [ "$YES_TO_ALL" = true ]; then
-    echo -e "${GREEN}✓${NC} $prompt (auto: sí)"
-    return 0
-  fi
-  
   while true; do
-    read -p "$prompt (s/n): " response
+    # Leer desde /dev/tty para que funcione con curl | bash
+    read -p "$prompt (s/n): " response < /dev/tty
     case "$response" in
       [Ss]* ) return 0;;
       [Nn]* ) return 1;;
@@ -230,49 +223,6 @@ show_final_summary() {
   echo "════════════════════════════════════════════════════════════"
   echo
 }
-
-# Función de ayuda
-show_help() {
-  cat << EOF
-Uso: $0 [OPCIONES]
-
-Opciones:
-  -y, --yes     Responder 'sí' a todas las preguntas
-  -h, --help    Mostrar esta ayuda
-
-Ejemplo:
-  $0              # Instalación interactiva
-  $0 -y           # Instalación automática sin preguntas
-
-El script puede ejecutarse directamente desde GitHub:
-  curl -s https://raw.githubusercontent.com/josemiz95/pi-setup/main/install.sh | bash
-  
-O con modo automático:
-  curl -s https://raw.githubusercontent.com/josemiz95/pi-setup/main/install.sh | bash -s -- -y
-
-EOF
-  exit 0
-}
-
-# Parsear argumentos
-while [[ $# -gt 0 ]]; do
-  case $1 in
-    -y|--yes)
-      YES_TO_ALL=true
-      shift
-      ;;
-    -h|--help)
-      show_help
-      ;;
-    *)
-      echo "Opción desconocida: $1"
-      show_help
-      ;;
-  esac
-done
-
-# Exportar variable para que los sub-scripts la usen
-export YES_TO_ALL
 
 # ═══════════════════════════════════════════════════════════
 # INICIO DEL SCRIPT PRINCIPAL
