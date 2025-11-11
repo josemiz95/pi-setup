@@ -2,12 +2,13 @@
 set -euo pipefail
 
 # install-wireguard-ui.sh
-# Instala WireGuard-UI en Docker con configuración completa
+# Instala WireGuard-UI en Docker con configuración completa (template NAT dentro del contenedor)
 
 CONTAINER_NAME="wireguard-ui"
 IMAGE_NAME="ngoduykhanh/wireguard-ui:latest"
 WIREGUARD_DIR="${HOME}/.wireguard-ui"
 WIREGUARD_CONF_DIR="${HOME}/.wireguard-ui/config"
+WG_TEMPLATE_DIR="${HOME}/.wireguard-ui/template"
 DEFAULT_USERNAME="admin"
 DEFAULT_PASSWORD="admin123"
 DEFAULT_PORT="51820"
@@ -90,21 +91,27 @@ echo
 echo "Creando directorios de persistencia..."
 mkdir -p "${WIREGUARD_DIR}"
 mkdir -p "${WIREGUARD_CONF_DIR}"
+mkdir -p "${WG_TEMPLATE_DIR}"
 echo "✓ Directorios creados:"
 echo "  • ${WIREGUARD_DIR}"
 echo "  • ${WIREGUARD_CONF_DIR}"
+echo "  • ${WG_TEMPLATE_DIR}"
+
+# Crear template NAT para WireGuard
+cat > "${WG_TEMPLATE_DIR}/wg0.conf.template" <<EOF
+[Interface]
+Address = {{.ServerAddress}}
+ListenPort = {{.ServerPort}}
+PrivateKey = {{.ServerPrivateKey}}
+PostUp = iptables -t nat -A POSTROUTING -o {{.ServerInterface}} -j MASQUERADE
+PostDown = iptables -t nat -D POSTROUTING -o {{.ServerInterface}} -j MASQUERADE
+EOF
+echo "✓ Template de WireGuard creado con NAT en ${WG_TEMPLATE_DIR}/wg0.conf.template"
 
 # Descargar imagen de WireGuard-UI
 echo
 echo "Descargando imagen de WireGuard-UI..."
 run_docker pull "$IMAGE_NAME"
-
-# Detectar interfaz de red principal
-NETWORK_INTERFACE=$(ip route | grep default | awk '{print $5}' | head -n1)
-if [ -z "$NETWORK_INTERFACE" ]; then
-  NETWORK_INTERFACE="eth0"
-fi
-echo "Interfaz de red detectada: ${NETWORK_INTERFACE}"
 
 # Crear y ejecutar contenedor WireGuard-UI
 echo
@@ -116,8 +123,10 @@ run_docker run -d \
   -e WGUI_USERNAME="$WGUI_USERNAME" \
   -e WGUI_PASSWORD="$WGUI_PASSWORD" \
   -e WGUI_ENDPOINT_ADDRESS="$PUBLIC_IP" \
+  -e WG_CONF_TEMPLATE="/app/template/wg0.conf.template" \
   -v ${WIREGUARD_DIR}:/app/db \
   -v ${WIREGUARD_CONF_DIR}:/etc/wireguard \
+  -v ${WG_TEMPLATE_DIR}:/app/template \
   --restart unless-stopped \
   "$IMAGE_NAME"
 
