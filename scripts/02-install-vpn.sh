@@ -6,8 +6,8 @@ set -euo pipefail
 
 CONTAINER_NAME="wireguard-ui"
 IMAGE_NAME="ngoduykhanh/wireguard-ui:latest"
-WIREGUARD_DIR="/opt/wireguard-ui"
-WIREGUARD_CONF_DIR="/etc/wireguard"
+WIREGUARD_DIR="${HOME}/.wireguard-ui"
+WIREGUARD_CONF_DIR="${HOME}/.wireguard-ui/config"
 DEFAULT_USERNAME="admin"
 DEFAULT_PASSWORD="admin123"
 DEFAULT_PORT="51820"
@@ -88,9 +88,8 @@ fi
 # Crear directorios para persistencia
 echo
 echo "Creando directorios de persistencia..."
-sudo mkdir -p "${WIREGUARD_DIR}"
-sudo mkdir -p "${WIREGUARD_CONF_DIR}"
-sudo chown -R $USER:$USER "${WIREGUARD_DIR}"
+mkdir -p "${WIREGUARD_DIR}"
+mkdir -p "${WIREGUARD_CONF_DIR}"
 echo "✓ Directorios creados:"
 echo "  • ${WIREGUARD_DIR}"
 echo "  • ${WIREGUARD_CONF_DIR}"
