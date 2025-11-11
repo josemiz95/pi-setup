@@ -122,47 +122,89 @@ echo "✓ Contenedor Pi-hole creado."
 # Esperar a que Pi-hole esté listo
 echo
 echo "Esperando a que Pi-hole inicie completamente..."
-echo "(Esto puede tardar hasta 30 segundos)"
+echo "(Esto puede tardar hasta 60 segundos)"
 
-# Esperar hasta 30 segundos a que Pi-hole esté listo
-for i in {1..30}; do
-  if run_docker exec "$CONTAINER_NAME" pihole status >/dev/null 2>&1; then
-    echo "✓ Pi-hole ha iniciado correctamente."
+# Esperar hasta 60 segundos a que Pi-hole esté completamente listo
+READY=false
+for i in {1..60}; do
+  # Verificar que el proceso lighttpd esté corriendo (indica que está listo)
+  if run_docker exec "$CONTAINER_NAME" pgrep lighttpd >/dev/null 2>&1; then
+    echo "✓ Pi-hole ha iniciado correctamente (después de $i segundos)."
+    READY=true
     break
   fi
   
-  if [ $i -eq 30 ]; then
-    echo "⚠ Pi-hole tardó más de lo esperado en iniciar."
-    echo "Continuando con la configuración de contraseña..."
+  if [ $((i % 10)) -eq 0 ]; then
+    echo "  Esperando... ($i/60 segundos)"
   fi
   
   sleep 1
 done
 
+if [ "$READY" = false ]; then
+  echo "⚠ Pi-hole tardó más de lo esperado en iniciar."
+  echo "Intentando configurar la contraseña de todos modos..."
+fi
+
+# Espera adicional de seguridad
+sleep 5
+
 # Configurar contraseña usando pihole setpassword
 echo
 echo "Configurando contraseña de Pi-hole..."
-sleep 2  # Espera adicional de seguridad
+echo "Intentando método 1: pihole -a -p"
 
-if run_docker exec "$CONTAINER_NAME" pihole -a -p "$PIHOLE_PASSWORD" >/dev/null 2>&1; then
-  echo "✓ Contraseña de Pi-hole configurada correctamente."
+# Método 1: usando pihole -a -p (método estándar)
+if run_docker exec "$CONTAINER_NAME" pihole -a -p "$PIHOLE_PASSWORD" 2>&1 | grep -q "password"; then
+  echo "✓ Contraseña configurada correctamente (método 1)."
+  PASSWORD_SET=true
 else
-  echo "⚠ Intento alternativo de configuración de contraseña..."
-  # Intento alternativo
-  if run_docker exec "$CONTAINER_NAME" bash -c "pihole -a -p '$PIHOLE_PASSWORD'" >/dev/null 2>&1; then
-    echo "✓ Contraseña configurada en el segundo intento."
+  echo "⚠ Método 1 falló, intentando método 2..."
+  PASSWORD_SET=false
+  
+  # Método 2: usando SetWebPassword directamente
+  if run_docker exec "$CONTAINER_NAME" bash -c "echo -e '$PIHOLE_PASSWORD\n$PIHOLE_PASSWORD' | pihole -a -p" >/dev/null 2>&1; then
+    echo "✓ Contraseña configurada correctamente (método 2)."
+    PASSWORD_SET=true
   else
-    echo "✗ No se pudo configurar la contraseña automáticamente."
-    echo
-    echo "Puedes configurarla manualmente ejecutando:"
-    if [ "$USE_SUDO_DOCKER" = true ]; then
-      echo "  sudo docker exec -it $CONTAINER_NAME pihole -a -p"
+    echo "⚠ Método 2 falló, intentando método 3..."
+    
+    # Método 3: Forzar con pihole setpassword
+    if run_docker exec "$CONTAINER_NAME" pihole setpassword "$PIHOLE_PASSWORD" >/dev/null 2>&1; then
+      echo "✓ Contraseña configurada correctamente (método 3)."
+      PASSWORD_SET=true
     else
-      echo "  docker exec -it $CONTAINER_NAME pihole -a -p"
+      echo "⚠ Método 3 falló, intentando método 4 (último intento)..."
+      
+      # Método 4: Ejecutar directamente con PHP
+      if run_docker exec "$CONTAINER_NAME" bash -c "pihole -a -p <<< '$PIHOLE_PASSWORD'" >/dev/null 2>&1; then
+        echo "✓ Contraseña configurada correctamente (método 4)."
+        PASSWORD_SET=true
+      else
+        PASSWORD_SET=false
+      fi
     fi
-    echo
-    echo "O desde el panel web en 'Settings > Set Web Password'"
   fi
+fi
+
+# Si no se pudo configurar, dar instrucciones
+if [ "$PASSWORD_SET" = false ]; then
+  echo
+  echo "✗ No se pudo configurar la contraseña automáticamente."
+  echo
+  echo "Por favor, configúrala manualmente ejecutando:"
+  if [ "$USE_SUDO_DOCKER" = true ]; then
+    echo "  sudo docker exec -it $CONTAINER_NAME pihole -a -p"
+  else
+    echo "  docker exec -it $CONTAINER_NAME pihole -a -p"
+  fi
+  echo
+  echo "Y luego introduce: $PIHOLE_PASSWORD"
+  echo
+  echo "O desde el panel web:"
+  echo "  1. Ve a http://${LOCAL_IP:-tu-ip}:5353/admin"
+  echo "  2. Click en 'Settings' > 'Set Web Password'"
+  echo "  3. Introduce: $PIHOLE_PASSWORD"
 fi
 
 # Verificar que el contenedor está corriendo
@@ -187,7 +229,11 @@ echo "════════════════════════�
 echo
 echo "Información de acceso:"
 echo " • Admin UI:    http://${LOCAL_IP}:5353/admin"
-echo " • Contraseña:  ${PIHOLE_PASSWORD}"
+if [ "$PASSWORD_SET" = true ]; then
+  echo " • Contraseña:  ${PIHOLE_PASSWORD} ✓"
+else
+  echo " • Contraseña:  ${PIHOLE_PASSWORD} ⚠ (requiere configuración manual)"
+fi
 echo " • DNS Server:  ${LOCAL_IP}:53"
 echo
 echo "Configuración de red:"
@@ -198,8 +244,13 @@ echo "Para usar Pi-hole como DNS en tu red:"
 echo "  1. Accede a la configuración de tu router"
 echo "  2. Cambia el DNS primario a: ${LOCAL_IP}"
 echo
-echo "⚠ IMPORTANTE: Guarda esta contraseña en un lugar seguro:"
-echo "   ${PIHOLE_PASSWORD}"
+if [ "$PASSWORD_SET" = true ]; then
+  echo "⚠ IMPORTANTE: Guarda esta contraseña en un lugar seguro:"
+  echo "   ${PIHOLE_PASSWORD}"
+else
+  echo "⚠ RECUERDA: Debes configurar la contraseña manualmente."
+  echo "   Contraseña deseada: ${PIHOLE_PASSWORD}"
+fi
 echo
 echo "═══════════════════════════════════════════════════════════"
 
