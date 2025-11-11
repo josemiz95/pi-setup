@@ -102,19 +102,15 @@ run_docker pull "$IMAGE_NAME"
 echo
 echo "Creando contenedor Pi-hole..."
 run_docker run -d \
-  --name "$CONTAINER_NAME" \
-  --hostname pihole \
-  --network "$NETWORK_NAME" \
-  --ip 10.0.1.3 \
-  -e TZ="Europe/Madrid" \
-  -e DNSMASQ_LISTENING=all \
-  -v "${PIHOLE_DIR}/etc-pihole:/etc/pihole" \
-  -v "${PIHOLE_DIR}/etc-dnsmasq.d:/etc/dnsmasq.d" \
-  -p 53:53/tcp \
-  -p 53:53/udp \
-  -p 5353:80/tcp \
+  --name $CONTAINER_NAME \
+  -p 53:53/tcp -p 53:53/udp \
+  -p 80:80/tcp -p 443:443/tcp \
+  -e TZ='Europe/Madrid' \
+  -e FTLCONF_webserver_api_password='josemi123' \
+  -e FTLCONF_dns_listeningMode='ALL' \
+  -v ${PIHOLE_DIR}/etc-pihole:/etc/pihole \
+  --cap-add=NET_ADMIN --cap-add=SYS_TIME --cap-add=SYS_NICE \
   --restart unless-stopped \
-  --cap-add NET_ADMIN \
   "$IMAGE_NAME"
 
 echo "✓ Contenedor Pi-hole creado."
