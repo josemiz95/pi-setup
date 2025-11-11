@@ -10,6 +10,7 @@ WIREGUARD_DIR="/opt/wireguard-ui"
 WIREGUARD_CONF_DIR="/etc/wireguard"
 DEFAULT_USERNAME="admin"
 DEFAULT_PASSWORD="admin123"
+DEFAULT_PORT="51820"
 WEB_PORT="5000"
 
 echo "═══════════════════════════════════════════════════════════"
@@ -87,14 +88,9 @@ fi
 # Crear directorios para persistencia
 echo
 echo "Creando directorios de persistencia..."
-if [ "$USE_SUDO_DOCKER" = true ]; then
-  sudo mkdir -p "${WIREGUARD_DIR}"
-  sudo mkdir -p "${WIREGUARD_CONF_DIR}"
-  sudo chown -R $USER:$USER "${WIREGUARD_DIR}"
-else
-  mkdir -p "${WIREGUARD_DIR}"
-  mkdir -p "${WIREGUARD_CONF_DIR}"
-fi
+sudo mkdir -p "${WIREGUARD_DIR}"
+sudo mkdir -p "${WIREGUARD_CONF_DIR}"
+sudo chown -R $USER:$USER "${WIREGUARD_DIR}"
 echo "✓ Directorios creados:"
 echo "  • ${WIREGUARD_DIR}"
 echo "  • ${WIREGUARD_CONF_DIR}"
@@ -122,7 +118,7 @@ run_docker run -d \
   -e WGUI_FORWARD_MARK="0xca6c" \
   -e WGUI_CONFIG_FILE_PATH="/etc/wireguard/wg0.conf" \
   -p ${WEB_PORT}:5000 \
-  -p 51820:51820/udp \
+  -p ${DEFAULT_PORT}:${DEFAULT_PORT}/udp \
   -v ${WIREGUARD_DIR}:/app/db \
   -v ${WIREGUARD_CONF_DIR}:/etc/wireguard \
   --restart unless-stopped \

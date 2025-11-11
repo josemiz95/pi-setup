@@ -301,6 +301,13 @@ fi
 echo
 
 # ───────────────────────────────────────────────────────────
+# PASO 5: Limpieza de archivos temporales
+# ───────────────────────────────────────────────────────────
+echo "Limpiando archivos temporales..."
+rm -rf /scripts 2>/dev/null || sudo rm -rf /scripts
+echo "✓ Limpieza completada"
+
+# ───────────────────────────────────────────────────────────
 # RESUMEN FINAL MEJORADO
 # ───────────────────────────────────────────────────────────
 show_final_summary
