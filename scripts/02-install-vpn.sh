@@ -99,11 +99,19 @@ echo
 echo "Descargando imagen de WireGuard-UI..."
 run_docker pull "$IMAGE_NAME"
 
+# Detectar interfaz de red principal
+NETWORK_INTERFACE=$(ip route | grep default | awk '{print $5}' | head -n1)
+if [ -z "$NETWORK_INTERFACE" ]; then
+  NETWORK_INTERFACE="eth0"
+fi
+echo "Interfaz de red detectada: ${NETWORK_INTERFACE}"
+
 # Crear y ejecutar contenedor WireGuard-UI
 echo
 echo "Creando contenedor WireGuard-UI..."
 run_docker run -d \
   --name $CONTAINER_NAME \
+  --network=host \
   --cap-add=NET_ADMIN \
   --cap-add=SYS_MODULE \
   --sysctl="net.ipv4.conf.all.src_valid_mark=1" \
@@ -116,8 +124,9 @@ run_docker run -d \
   -e WGUI_PERSISTENT_KEEPALIVE="25" \
   -e WGUI_FORWARD_MARK="0xca6c" \
   -e WGUI_CONFIG_FILE_PATH="/etc/wireguard/wg0.conf" \
-  -p ${WEB_PORT}:5000 \
-  -p ${DEFAULT_PORT}:${DEFAULT_PORT}/udp \
+  -e WGUI_SERVER_INTERFACE_ADDRESSES="10.252.1.0/24" \
+  -e WGUI_SERVER_POST_UP_SCRIPT="iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o ${NETWORK_INTERFACE} -j MASQUERADE" \
+  -e WGUI_SERVER_POST_DOWN_SCRIPT="iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o ${NETWORK_INTERFACE} -j MASQUERADE" \
   -v ${WIREGUARD_DIR}:/app/db \
   -v ${WIREGUARD_CONF_DIR}:/etc/wireguard \
   --restart unless-stopped \
