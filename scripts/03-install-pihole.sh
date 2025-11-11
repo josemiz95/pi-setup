@@ -78,7 +78,7 @@ echo "Creando contenedor Pi-hole..."
 run_docker run -d \
   --name $CONTAINER_NAME \
   -p 53:53/tcp -p 53:53/udp \
-  -p 80:80/tcp -p 443:443/tcp \
+  -p 5353:80/tcp \
   -e TZ='Europe/Madrid' \
   -e FTLCONF_webserver_api_password="$PIHOLE_PASSWORD" \
   -e FTLCONF_dns_listeningMode='ALL' \
