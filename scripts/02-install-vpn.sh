@@ -1,177 +1,108 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# install-wireguard-ui.sh
-# Instala WireGuard-UI en Docker con configuración completa (template NAT dentro del contenedor)
-
-CONTAINER_NAME="wireguard-ui"
-IMAGE_NAME="ngoduykhanh/wireguard-ui:latest"
-WIREGUARD_DIR="${HOME}/.wireguard-ui"
-WIREGUARD_CONF_DIR="${HOME}/.wireguard-ui/config"
-WG_TEMPLATE_DIR="${HOME}/.wireguard-ui/template"
-DEFAULT_USERNAME="admin"
-DEFAULT_PASSWORD="admin123"
-DEFAULT_PORT="51820"
-WEB_PORT="5000"
+# 04-install-pivpn.sh
+# Instala PiVPN y configura el reenvío de IP
 
 echo "═══════════════════════════════════════════════════════════"
-echo "  Instalación de WireGuard-UI en Docker"
+echo "  Instalación de PiVPN"
 echo "═══════════════════════════════════════════════════════════"
 echo
 
 # Función para detectar si necesita sudo
-USE_SUDO_DOCKER=false
-if ! docker info >/dev/null 2>&1; then
-  if sudo docker info >/dev/null 2>&1; then
-    USE_SUDO_DOCKER=true
-    echo "⚠ Se usará 'sudo' para comandos de Docker."
+USE_SUDO=false
+if [ "$EUID" -ne 0 ]; then
+  if sudo -n true 2>/dev/null; then
+    USE_SUDO=true
+    echo "⚠ Se usará 'sudo' para comandos privilegiados."
   else
-    echo "✗ Error: No se puede conectar con Docker."
+    echo "✗ Error: Se requieren permisos de superusuario."
     exit 1
   fi
 fi
 
-run_docker() {
-  if [ "$USE_SUDO_DOCKER" = true ]; then
-    sudo docker "$@"
+run_sudo() {
+  if [ "$USE_SUDO" = true ]; then
+    sudo "$@"
   else
-    docker "$@"
+    "$@"
   fi
 }
 
-# Verificar si WireGuard-UI ya está instalado
-if run_docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
-  echo "⚠ El contenedor '${CONTAINER_NAME}' ya existe."
+# Verificar si PiVPN ya está instalado
+if command -v pivpn >/dev/null 2>&1; then
+  echo "⚠ PiVPN parece estar ya instalado."
   
-  read -p "¿Deseas eliminarlo y reinstalar? (s/n): " response < /dev/tty
+  read -p "¿Deseas continuar con la instalación? (s/n): " response < /dev/tty
   if [[ ! "$response" =~ ^[Ss]$ ]]; then
-    echo "Cancelando instalación de WireGuard-UI."
+    echo "Cancelando instalación de PiVPN."
     exit 0
   fi
-  
-  echo "Eliminando contenedor existente..."
-  run_docker stop "$CONTAINER_NAME" 2>/dev/null || true
-  run_docker rm "$CONTAINER_NAME" 2>/dev/null || true
 fi
 
-# Obtener IP pública
-echo "Detectando IP pública..."
-PUBLIC_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null || echo "")
-
-if [ -z "$PUBLIC_IP" ]; then
-  echo "⚠ No se pudo detectar la IP pública automáticamente."
-  read -p "Introduce tu IP pública o dominio: " PUBLIC_IP < /dev/tty
-else
-  echo "✓ IP pública detectada: ${PUBLIC_IP}"
-  read -p "¿Es correcta? (s/n - si 'n' introduce la correcta): " confirm < /dev/tty
-  if [[ ! "$confirm" =~ ^[Ss]$ ]]; then
-    read -p "Introduce tu IP pública o dominio: " PUBLIC_IP < /dev/tty
-  fi
-fi
-
-# Pedir credenciales al usuario
+# Ejecutar instalador de PiVPN
 echo
-echo "Configuración de acceso a la UI:"
-read -p "Usuario (Enter para '${DEFAULT_USERNAME}'): " WGUI_USERNAME < /dev/tty
-read -p "Contraseña (Enter para '${DEFAULT_PASSWORD}'): " WGUI_PASSWORD < /dev/tty
-
-# Si no se introducen, usar los por defecto
-if [ -z "$WGUI_USERNAME" ]; then
-  WGUI_USERNAME="$DEFAULT_USERNAME"
-  echo "Usando usuario por defecto: ${DEFAULT_USERNAME}"
-fi
-
-if [ -z "$WGUI_PASSWORD" ]; then
-  WGUI_PASSWORD="$DEFAULT_PASSWORD"
-  echo "Usando contraseña por defecto: ${DEFAULT_PASSWORD}"
-fi
-
-# Crear directorios para persistencia
+echo "Descargando e iniciando instalador de PiVPN..."
+echo "NOTA: El instalador será interactivo, sigue las instrucciones en pantalla."
 echo
-echo "Creando directorios de persistencia..."
-mkdir -p "${WIREGUARD_DIR}"
-mkdir -p "${WIREGUARD_CONF_DIR}"
-mkdir -p "${WG_TEMPLATE_DIR}"
-echo "✓ Directorios creados:"
-echo "  • ${WIREGUARD_DIR}"
-echo "  • ${WIREGUARD_CONF_DIR}"
-echo "  • ${WG_TEMPLATE_DIR}"
+curl -L https://install.pivpn.io | bash
 
-# Crear template NAT para WireGuard
-cat > "${WG_TEMPLATE_DIR}/wg0.conf.template" <<EOF
-[Interface]
-Address = {{.ServerAddress}}
-ListenPort = {{.ServerPort}}
-PrivateKey = {{.ServerPrivateKey}}
-PostUp = iptables -t nat -A POSTROUTING -o {{.ServerInterface}} -j MASQUERADE
-PostDown = iptables -t nat -D POSTROUTING -o {{.ServerInterface}} -j MASQUERADE
-EOF
-echo "✓ Template de WireGuard creado con NAT en ${WG_TEMPLATE_DIR}/wg0.conf.template"
-
-# Descargar imagen de WireGuard-UI
-echo
-echo "Descargando imagen de WireGuard-UI..."
-run_docker pull "$IMAGE_NAME"
-
-# Crear y ejecutar contenedor WireGuard-UI
-echo
-echo "Creando contenedor WireGuard-UI..."
-run_docker run -d \
-  --name $CONTAINER_NAME \
-  --network=host \
-  --cap-add=NET_ADMIN \
-  -e WGUI_USERNAME="$WGUI_USERNAME" \
-  -e WGUI_PASSWORD="$WGUI_PASSWORD" \
-  -e WGUI_ENDPOINT_ADDRESS="$PUBLIC_IP" \
-  -e WG_CONF_TEMPLATE="/app/template/wg0.conf.template" \
-  -v ${WIREGUARD_DIR}:/app/db \
-  -v ${WIREGUARD_CONF_DIR}:/etc/wireguard \
-  -v ${WG_TEMPLATE_DIR}:/app/template \
-  --restart unless-stopped \
-  "$IMAGE_NAME"
-
-# Esperar a que WireGuard-UI esté listo
-echo
-echo "Esperando a que WireGuard-UI inicie (10 segundos)..."
-sleep 10
-
-# Verificar que el contenedor está corriendo
-echo
-if run_docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
-  echo "✓ WireGuard-UI está corriendo correctamente."
-else
-  echo "✗ Error: WireGuard-UI no está corriendo."
-  echo "Logs del contenedor:"
-  run_docker logs --tail 50 "$CONTAINER_NAME"
+# Verificar si la instalación fue exitosa
+if ! command -v pivpn >/dev/null 2>&1; then
+  echo
+  echo "✗ Error: La instalación de PiVPN no se completó correctamente."
   exit 1
 fi
 
-# Obtener IP local
-LOCAL_IP=$(hostname -I | awk '{print $1}')
+echo
+echo "✓ PiVPN instalado correctamente."
+
+# Configurar IP forwarding en /etc/sysctl.conf
+echo
+echo "Configurando reenvío de IP (ip_forward)..."
+
+SYSCTL_FILE="/etc/sysctl.conf"
+IP_FORWARD_LINE="net.ipv4.ip_forward=1"
+
+# Verificar si ya está configurado
+if run_sudo grep -q "^net.ipv4.ip_forward=1" "$SYSCTL_FILE" 2>/dev/null; then
+  echo "✓ IP forwarding ya está habilitado en ${SYSCTL_FILE}"
+else
+  # Descomentar si existe comentado o añadir al final
+  if run_sudo grep -q "^#net.ipv4.ip_forward=1" "$SYSCTL_FILE" 2>/dev/null; then
+    echo "Descomentando línea existente..."
+    run_sudo sed -i 's/^#net.ipv4.ip_forward=1/net.ipv4.ip_forward=1/' "$SYSCTL_FILE"
+  else
+    echo "Añadiendo configuración al final del archivo..."
+    echo "$IP_FORWARD_LINE" | run_sudo tee -a "$SYSCTL_FILE" > /dev/null
+  fi
+  
+  echo "✓ IP forwarding configurado en ${SYSCTL_FILE}"
+fi
+
+# Aplicar cambios inmediatamente
+echo
+echo "Aplicando cambios de sysctl..."
+run_sudo sysctl -p
+
+# Verificar que el cambio está activo
+IP_FORWARD_STATUS=$(cat /proc/sys/net/ipv4/ip_forward)
+if [ "$IP_FORWARD_STATUS" = "1" ]; then
+  echo "✓ IP forwarding está activo."
+else
+  echo "⚠ Advertencia: IP forwarding no está activo. Puede requerir reinicio."
+fi
 
 # Información final
 echo
 echo "═══════════════════════════════════════════════════════════"
-echo "  ✓ WireGuard-UI instalado exitosamente"
+echo "  ✓ Instalación completada"
 echo "═══════════════════════════════════════════════════════════"
 echo
-echo "Información de acceso:"
-echo " • Web UI:      http://${LOCAL_IP}:${WEB_PORT}"
-echo " • Usuario:     ${WGUI_USERNAME}"
-echo " • Contraseña:  ${WGUI_PASSWORD}"
-echo " • Endpoint:    ${PUBLIC_IP}:${DEFAULT_PORT}"
+echo "PiVPN instalado y configurado correctamente."
+echo "IP forwarding habilitado: net.ipv4.ip_forward=1"
 echo
-echo "Próximos pasos:"
-echo "  1. Accede a la Web UI desde tu navegador"
-echo "  2. Configura el servidor WireGuard (si no está ya configurado)"
-echo "  3. Añade clientes desde la interfaz"
-echo "  4. ⚠ IMPORTANTE: Configura port forwarding en tu router"
-echo "     Puerto: ${DEFAULT_PORT}/UDP → ${LOCAL_IP}:${DEFAULT_PORT}"
-echo
-echo "Comandos útiles:"
-echo "  • Ver logs:       docker logs ${CONTAINER_NAME}"
-echo "  • Reiniciar:      docker restart ${CONTAINER_NAME}"
-echo "  • Ver estado WG:  sudo wg show"
+echo "Para gestionar PiVPN, usa el comando: pivpn"
 echo
 echo "═══════════════════════════════════════════════════════════"
 
