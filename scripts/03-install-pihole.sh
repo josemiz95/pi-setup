@@ -155,38 +155,10 @@ echo "Configurando contraseña de Pi-hole..."
 echo "Intentando método 1: pihole -a -p"
 
 # Método 1: usando pihole -a -p (método estándar)
-if run_docker exec "$CONTAINER_NAME" pihole -a -p "$PIHOLE_PASSWORD" 2>&1 | grep -q "password"; then
-  echo "✓ Contraseña configurada correctamente (método 1)."
-  PASSWORD_SET=true
-else
-  echo "⚠ Método 1 falló, intentando método 2..."
-  PASSWORD_SET=false
-  
-  # Método 2: usando SetWebPassword directamente
-  if run_docker exec "$CONTAINER_NAME" bash -c "echo -e '$PIHOLE_PASSWORD\n$PIHOLE_PASSWORD' | pihole -a -p" >/dev/null 2>&1; then
-    echo "✓ Contraseña configurada correctamente (método 2)."
-    PASSWORD_SET=true
-  else
-    echo "⚠ Método 2 falló, intentando método 3..."
-    
-    # Método 3: Forzar con pihole setpassword
-    if run_docker exec "$CONTAINER_NAME" pihole setpassword "$PIHOLE_PASSWORD" >/dev/null 2>&1; then
+if run_docker exec "$CONTAINER_NAME" pihole setpassword "$PIHOLE_PASSWORD" >/dev/null 2>&1; then
       echo "✓ Contraseña configurada correctamente (método 3)."
       PASSWORD_SET=true
-    else
-      echo "⚠ Método 3 falló, intentando método 4 (último intento)..."
       
-      # Método 4: Ejecutar directamente con PHP
-      if run_docker exec "$CONTAINER_NAME" bash -c "pihole -a -p <<< '$PIHOLE_PASSWORD'" >/dev/null 2>&1; then
-        echo "✓ Contraseña configurada correctamente (método 4)."
-        PASSWORD_SET=true
-      else
-        PASSWORD_SET=false
-      fi
-    fi
-  fi
-fi
-
 # Si no se pudo configurar, dar instrucciones
 if [ "$PASSWORD_SET" = false ]; then
   echo
