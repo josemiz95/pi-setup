@@ -158,7 +158,8 @@ echo "Intentando método 1: pihole -a -p"
 if run_docker exec "$CONTAINER_NAME" pihole setpassword "$PIHOLE_PASSWORD" >/dev/null 2>&1; then
       echo "✓ Contraseña configurada correctamente (método 3)."
       PASSWORD_SET=true
-      
+fi
+  
 # Si no se pudo configurar, dar instrucciones
 if [ "$PASSWORD_SET" = false ]; then
   echo
